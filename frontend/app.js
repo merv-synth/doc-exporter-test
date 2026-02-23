@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:8000";
+const API_BASE = window.APP_CONFIG?.API_BASE_URL || "http://localhost:8000";
 
 const apiKeyInput = document.getElementById("apiKey");
 const loadVideosBtn = document.getElementById("loadVideosBtn");

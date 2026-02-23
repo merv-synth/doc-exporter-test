@@ -1,11 +1,11 @@
 # doc-exporter-test
 
-A self-contained local test environment for exporting Synthesia video script content (from XLIFF) into a PDF.
+A deployment-ready project for exporting Synthesia video script content (from XLIFF) into a PDF.
 
 This project includes:
 
-- **FastAPI backend** (local) for API calls, XLIFF parsing, and PDF generation
-- **Static frontend** compatible with GitHub Pages
+- **FastAPI backend** for API calls, XLIFF parsing, and PDF generation
+- **Static frontend** deployable to GitHub Pages
 
 ## Project structure
 
@@ -19,10 +19,37 @@ doc-exporter-test/
 │   └── README.md
 ├── frontend/
 │   ├── index.html
+│   ├── config.js
 │   ├── app.js
 │   └── styles.css
 └── README.md
 ```
+
+## Deployment wiring
+
+Set these URLs for your own deployment:
+
+- **Frontend (GitHub Pages):** `https://<user>.github.io/<repo>/`
+- **Backend (Render/Fly.io/Railway/etc.):** `https://<your-backend-domain>`
+
+How they connect:
+
+1. The frontend sends requests to `window.APP_CONFIG.API_BASE_URL` from `frontend/config.js`.
+2. Set `API_BASE_URL` in `frontend/config.js` to your deployed backend URL.
+3. Configure backend CORS (`ALLOWED_ORIGINS`) to include your Pages origin.
+
+## Backend environment configuration
+
+`backend/app.py` reads runtime configuration from environment variables:
+
+- `ALLOWED_ORIGINS` (comma-separated; preferred in deployed environments)
+  - Example: `https://<user>.github.io,http://localhost:5500`
+- `GITHUB_PAGES_ORIGIN` (optional helper when `ALLOWED_ORIGINS` is not set)
+  - Example: `https://<user>.github.io`
+- `SYNTHESIA_API_BASE` (optional; defaults to `https://api.synthesia.io/v2`)
+- `REQUEST_TIMEOUT` (optional; defaults to `30`)
+
+If `ALLOWED_ORIGINS` is omitted, local development origins are allowed by default (`localhost:5500`, `127.0.0.1:5500`, `localhost:5173`, `127.0.0.1:5173`) and `GITHUB_PAGES_ORIGIN` is appended when present.
 
 ## Run backend locally
 
@@ -51,22 +78,25 @@ Then open:
 
 - <http://localhost:5500>
 
-`frontend/app.js` uses:
+For local use, keep `frontend/config.js` as:
 
 ```js
-const API_BASE = "http://localhost:8000";
+window.APP_CONFIG = {
+  API_BASE_URL: "http://localhost:8000",
+};
 ```
 
-## GitHub Pages deployment (frontend only)
+## GitHub Pages deployment (frontend)
 
 1. Push this repository to GitHub.
 2. Go to **Settings → Pages**.
 3. Under **Build and deployment**, set:
    - **Source:** Deploy from a branch
-   - **Branch:** `main`
+   - **Branch:** your main branch
    - **Folder:** `/frontend`
-4. Save and wait for Pages URL to be published.
-5. Ensure your local backend (`http://localhost:8000`) is running when testing from Pages.
+4. Save and wait for the Pages URL to be published.
+5. Update `frontend/config.js` so `API_BASE_URL` points to your deployed backend URL.
+6. Ensure backend `ALLOWED_ORIGINS` includes your Pages origin.
 
 ## Example curl commands
 
@@ -84,13 +114,3 @@ curl -X POST "http://localhost:8000/export-pdf" \
   -F "video_id=VIDEO_ID" \
   --output export.pdf
 ```
-
-## Notes
-
-- No AWS, Cognito, queues, or external infrastructure required.
-- Built for local end-to-end testing.
-
-## Security
-
-This setup is intended for **local testing only**.
-Do not expose this backend publicly with unrestricted CORS and direct API key handling.

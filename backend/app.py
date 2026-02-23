@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -12,14 +13,36 @@ from fastapi.responses import FileResponse
 from parser import parse_scenes_from_xliff
 from pdf_generator import generate_pdf
 
-SYNTHESIA_API_BASE = "https://api.synthesia.io/v2"
-REQUEST_TIMEOUT = 30
+SYNTHESIA_API_BASE = os.getenv("SYNTHESIA_API_BASE", "https://api.synthesia.io/v2").rstrip("/")
+REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "30"))
+
+
+def _parse_allowed_origins() -> list[str]:
+    configured = os.getenv("ALLOWED_ORIGINS")
+    if configured:
+        return [origin.strip() for origin in configured.split(",") if origin.strip()]
+
+    default_origins = [
+        "http://localhost:5500",
+        "http://127.0.0.1:5500",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+
+    pages_origin = os.getenv("GITHUB_PAGES_ORIGIN")
+    if pages_origin:
+        default_origins.append(pages_origin.strip().rstrip("/"))
+
+    return default_origins
+
+
+ALLOWED_ORIGINS = _parse_allowed_origins()
 
 app = FastAPI(title="Synthesia XLIFF PDF Exporter")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
