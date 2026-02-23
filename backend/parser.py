@@ -6,7 +6,8 @@ from lxml import etree
 def parse_scenes_from_xliff(xliff_content: bytes) -> list[dict[str, list[str] | str]]:
     """Parse Synthesia scene scripts from an XLIFF 1.2 document with namespace safety."""
     try:
-        root = etree.fromstring(xliff_content)
+        parser = etree.XMLParser(recover=False, remove_blank_text=True)
+        root = etree.fromstring(xliff_content.strip(), parser=parser)
     except etree.XMLSyntaxError as exc:
         raise ValueError("Invalid XLIFF content") from exc
 

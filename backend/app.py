@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 import tempfile
+import json
 from pathlib import Path
 
 import requests
@@ -76,13 +77,39 @@ def _download_xliff(api_key: str, video_id: str) -> bytes:
             continue
 
         if response.status_code == 200 and response.content:
-            return response.content
+            return _extract_xliff_payload(response)
         last_error = f"status={response.status_code}"
 
     raise HTTPException(
         status_code=502,
         detail=f"Failed to download XLIFF from Synthesia ({last_error})",
     )
+
+
+def _extract_xliff_payload(response: requests.Response) -> bytes:
+    """Extract raw XML from either direct XML or JSON-wrapped API responses."""
+    content = response.content.strip()
+    content_type = response.headers.get("content-type", "").lower()
+
+    if "json" in content_type:
+        try:
+            payload = response.json()
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=502, detail="Synthesia returned invalid JSON")
+
+        if isinstance(payload, dict):
+            for key in ("xliff", "content", "data"):
+                value = payload.get(key)
+                if isinstance(value, str) and "<xliff" in value:
+                    return value.encode("utf-8")
+
+        raise HTTPException(status_code=502, detail="Synthesia response does not contain XLIFF")
+
+    if b"<xliff" in content:
+        start = content.find(b"<")
+        return content[start:]
+
+    raise HTTPException(status_code=502, detail="Synthesia response is not valid XLIFF")
 
 
 @app.get("/healthz")
@@ -113,16 +140,30 @@ def export_pdf(
 ):
     xliff_content = _download_xliff(api_key, video_id)
 
+    temp_dir = Path(tempfile.mkdtemp(prefix="synthesia_export_"))
+    xliff_path = temp_dir / f"{video_id}.xliff"
+    pdf_path = temp_dir / f"{video_id}.pdf"
+
+    try:
+        xliff_path.write_bytes(xliff_content)
+    except OSError as exc:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise HTTPException(status_code=500, detail="Failed to store XLIFF locally") from exc
+
+    try:
+        xliff_content = xliff_path.read_bytes()
+    except OSError as exc:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise HTTPException(status_code=500, detail="Failed to read stored XLIFF") from exc
+
     try:
         scenes = parse_scenes_from_xliff(xliff_content)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     if not scenes:
+        shutil.rmtree(temp_dir, ignore_errors=True)
         raise HTTPException(status_code=422, detail="No scenes found in XLIFF")
-
-    temp_dir = Path(tempfile.mkdtemp(prefix="synthesia_export_"))
-    pdf_path = temp_dir / f"{video_id}.pdf"
 
     try:
         generate_pdf(scenes, pdf_path)
