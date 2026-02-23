@@ -43,16 +43,8 @@ app.add_middleware(
 def _synthesia_headers(api_key: str) -> dict[str, str]:
     normalized_key = api_key.strip()
 
-    # Users often paste either a raw key or a value prefixed with "Bearer ".
-    # Keep the original if Bearer is already included, otherwise add it.
-    authorization_value = (
-        normalized_key
-        if normalized_key.lower().startswith("bearer ")
-        else f"Bearer {normalized_key}"
-    )
-
     return {
-        "Authorization": authorization_value,
+        "Authorization": normalized_key,
         "X-API-Key": normalized_key,
         "Accept": "application/json",
     }
