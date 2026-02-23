@@ -57,21 +57,36 @@ def _mask_secret(value: str) -> str:
     return f"{value[:4]}...{value[-4:]}"
 
 
-def _safe_preview(content: bytes, max_len: int = 500) -> str:
+def _safe_preview(content: bytes) -> str:
     try:
         text = content.decode("utf-8", errors="replace")
     except Exception:  # defensive
         return "<non-text payload>"
-    return text[:max_len] + ("...<truncated>" if len(text) > max_len else "")
+    return text
+
+
+def _sanitize_headers(headers: dict[str, str] | requests.structures.CaseInsensitiveDict[str]) -> dict[str, str]:
+    sanitized_headers: dict[str, str] = {}
+    for key, value in headers.items():
+        if key.lower() in {"authorization", "x-api-key"}:
+            sanitized_headers[key] = _mask_secret(value)
+        else:
+            sanitized_headers[key] = value
+    return sanitized_headers
 
 
 def _log_upstream_response(trace_id: str, operation: str, response: requests.Response) -> None:
+    request = response.request
     logger.info(
-        "[%s] %s response status=%s content_type=%s body_preview=%s",
+        "[%s] %s Synthesia API call method=%s url=%s request_headers=%s request_body=%s status=%s response_headers=%s response_body=%s",
         trace_id,
         operation,
+        request.method if request else "unknown",
+        request.url if request else "unknown",
+        _sanitize_headers(request.headers) if request else {},
+        request.body.decode("utf-8", errors="replace") if request and isinstance(request.body, bytes) else (request.body if request else None),
         response.status_code,
-        response.headers.get("content-type", "unknown"),
+        dict(response.headers),
         _safe_preview(response.content),
     )
 
@@ -177,11 +192,21 @@ def _extract_xliff_payload(response: requests.Response) -> bytes:
 
 
 def _build_videos_response(videos: list[dict], trace_id: str) -> dict[str, list[dict]]:
+    def _thumbnail_payload(video: dict) -> dict[str, str | None]:
+        thumbnail = video.get("thumbnail")
+        if not isinstance(thumbnail, dict):
+            return {"image": None, "gif": None}
+        return {
+            "image": thumbnail.get("image"),
+            "gif": thumbnail.get("gif"),
+        }
+
     result = [
         {
             "id": video.get("id"),
             "title": video.get("title") or video.get("name") or video.get("id"),
             "status": video.get("status"),
+            "thumbnail": _thumbnail_payload(video),
         }
         for video in videos
         if video.get("id")

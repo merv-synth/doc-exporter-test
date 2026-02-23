@@ -11,6 +11,7 @@ const apiKeyInput = document.getElementById("apiKey");
 const loadVideosBtn = document.getElementById("loadVideosBtn");
 const exportPdfBtn = document.getElementById("exportPdfBtn");
 const videoList = document.getElementById("videoList");
+const videoGallery = document.getElementById("videoGallery");
 const loadingEl = document.getElementById("loading");
 const errorEl = document.getElementById("error");
 const successEl = document.getElementById("success");
@@ -84,11 +85,22 @@ function addLog(step, payload = "") {
 }
 
 async function fetchWithLogging(url, options = {}) {
+  let requestBody = options.body;
+  if (typeof requestBody === "string") {
+    try {
+      requestBody = JSON.parse(requestBody);
+    } catch {
+      // leave raw string as-is
+    }
+  } else if (requestBody instanceof FormData) {
+    requestBody = Object.fromEntries(requestBody.entries());
+  }
+
   addLog("➡️ API request", {
     url,
     method: options.method || "GET",
     headers: options.headers || {},
-    bodyType: options.body ? options.body.constructor?.name || typeof options.body : null,
+    body: requestBody || null,
   });
 
   const response = await fetch(url, options);
@@ -100,7 +112,7 @@ async function fetchWithLogging(url, options = {}) {
     bodyPreview = jsonPayload;
   } else {
     const textPayload = await response.clone().text().catch(() => "");
-    bodyPreview = textPayload.slice(0, 500);
+    bodyPreview = textPayload;
   }
 
   addLog("⬅️ API response", {
@@ -112,6 +124,68 @@ async function fetchWithLogging(url, options = {}) {
   });
 
   return response;
+}
+
+function clearVideoGallery() {
+  videoGallery.innerHTML = "";
+  videoList.value = "";
+}
+
+function renderVideoCards(videos) {
+  clearVideoGallery();
+
+  for (const video of videos) {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "video-card";
+    card.dataset.videoId = video.id;
+
+    const thumb = document.createElement("img");
+    thumb.className = "video-card__thumbnail";
+    thumb.loading = "lazy";
+    thumb.src = video.thumbnail?.image || "";
+    thumb.alt = `${video.title} thumbnail`;
+    thumb.referrerPolicy = "no-referrer";
+
+    if (!video.thumbnail?.image) {
+      thumb.classList.add("video-card__thumbnail--hidden");
+    }
+
+    const details = document.createElement("div");
+    details.className = "video-card__details";
+
+    const title = document.createElement("p");
+    title.className = "video-card__title";
+    title.textContent = video.title || video.id;
+
+    const status = document.createElement("p");
+    status.className = "video-card__status";
+    status.textContent = `Status: ${video.status || "unknown"}`;
+
+    details.appendChild(title);
+    details.appendChild(status);
+    card.appendChild(thumb);
+    card.appendChild(details);
+
+    card.addEventListener("click", () => {
+      videoList.value = video.id;
+      document.querySelectorAll(".video-card.is-selected").forEach((el) => {
+        el.classList.remove("is-selected");
+      });
+      card.classList.add("is-selected");
+      exportPdfBtn.disabled = false;
+      addLog("Video selection changed", { selectedVideoId: video.id });
+    });
+
+    videoGallery.appendChild(card);
+  }
+
+  if (videos.length > 0) {
+    const firstCard = videoGallery.querySelector(".video-card");
+    if (firstCard) {
+      firstCard.click();
+    }
+  }
 }
 
 async function loadVideos() {
@@ -151,17 +225,11 @@ async function loadVideos() {
       videoCount: (data.videos || []).length,
     });
 
-    videoList.innerHTML = "";
-
-    for (const video of data.videos || []) {
-      const option = document.createElement("option");
-      option.value = video.id;
-      option.textContent = `${video.title} (${video.status || "unknown"})`;
-      videoList.appendChild(option);
-    }
+    const videos = data.videos || [];
+    renderVideoCards(videos);
 
     exportPdfBtn.disabled = !videoList.value;
-    if (!videoList.options.length) {
+    if (!videos.length) {
       setError("No videos were returned for this account.");
       addLog("No videos available for account");
     } else {
@@ -244,11 +312,6 @@ async function exportPdf() {
     setLoading(false);
   }
 }
-
-videoList.addEventListener("change", () => {
-  exportPdfBtn.disabled = !videoList.value;
-  addLog("Video selection changed", { selectedVideoId: videoList.value || null });
-});
 
 clearLogsBtn.addEventListener("click", () => {
   logsEl.textContent = "";
