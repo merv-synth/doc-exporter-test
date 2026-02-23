@@ -132,8 +132,14 @@ async function loadVideos() {
   });
 
   try {
-    const url = `${API_BASE}/videos?api_key=${encodeURIComponent(apiKey)}`;
-    const response = await fetchWithLogging(url);
+    const url = `${API_BASE}/videos`;
+    const response = await fetchWithLogging(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ api_key: apiKey }),
+    });
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));

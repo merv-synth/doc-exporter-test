@@ -12,6 +12,7 @@ import requests
 from fastapi import BackgroundTasks, FastAPI, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 from parser import parse_scenes_from_xliff
 from pdf_generator import generate_pdf
@@ -175,16 +176,7 @@ def _extract_xliff_payload(response: requests.Response) -> bytes:
     raise HTTPException(status_code=502, detail="Synthesia response is not valid XLIFF")
 
 
-@app.get("/healthz")
-def healthz():
-    return {"status": "ok"}
-
-
-@app.get("/videos")
-def get_videos(api_key: str):
-    trace_id = uuid4().hex[:8]
-    logger.info("[%s] /videos request received", trace_id)
-    videos = _fetch_videos(api_key, trace_id)
+def _build_videos_response(videos: list[dict], trace_id: str) -> dict[str, list[dict]]:
     result = [
         {
             "id": video.get("id"),
@@ -196,6 +188,31 @@ def get_videos(api_key: str):
     ]
     logger.info("[%s] Returning %s videos to client", trace_id, len(result))
     return {"videos": result}
+
+
+class VideosRequest(BaseModel):
+    api_key: str
+
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
+
+
+@app.get("/videos")
+def get_videos(api_key: str):
+    trace_id = uuid4().hex[:8]
+    logger.info("[%s] /videos request received", trace_id)
+    videos = _fetch_videos(api_key, trace_id)
+    return _build_videos_response(videos, trace_id)
+
+
+@app.post("/videos")
+def post_videos(payload: VideosRequest):
+    trace_id = uuid4().hex[:8]
+    logger.info("[%s] /videos POST request received", trace_id)
+    videos = _fetch_videos(payload.api_key, trace_id)
+    return _build_videos_response(videos, trace_id)
 
 
 @app.post("/export-pdf")
