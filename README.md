@@ -51,11 +51,11 @@ Then open:
 
 - <http://localhost:5500>
 
-`frontend/app.js` uses:
+`frontend/app.js` resolves API base dynamically with a local default:
 
-```js
-const API_BASE = "http://localhost:8000";
-```
+- Runtime override: `window.__API_BASE__` from `frontend/config.js`
+- Hostname fallback map (for local hostnames)
+- Local default: `http://localhost:8000`
 
 ## GitHub Pages deployment (frontend only)
 
@@ -66,7 +66,13 @@ const API_BASE = "http://localhost:8000";
    - **Branch:** `main`
    - **Folder:** `/frontend`
 4. Save and wait for Pages URL to be published.
-5. Ensure your local backend (`http://localhost:8000`) is running when testing from Pages.
+5. In `frontend/config.js`, set `window.__API_BASE__` to your production backend URL.
+   Example:
+   ```js
+   window.__API_BASE__ = "https://your-backend.example.com";
+   ```
+6. Commit and push the config change so Pages serves the updated endpoint.
+7. For local development, keep `window.__API_BASE__` empty to fall back to `http://localhost:8000`.
 
 ## Example curl commands
 
