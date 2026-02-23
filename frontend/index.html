@@ -8,29 +8,42 @@
   </head>
   <body>
     <main class="container">
-      <h1>Synthesia XLIFF → PDF Exporter</h1>
+      <section class="panel app-shell">
+        <header class="hero">
+          <p class="eyebrow">Synthesia Toolkit</p>
+          <h1>Synthesia XLIFF → PDF Exporter</h1>
+          <p class="subtitle">
+            Load your videos, export polished PDFs, and monitor every API interaction in real time.
+          </p>
+        </header>
 
-      <label for="apiKey">Synthesia API Key</label>
-      <input id="apiKey" type="password" placeholder="Paste API key" />
+        <section class="panel controls-panel">
+          <label for="apiKey">Synthesia API Key</label>
+          <input id="apiKey" type="password" placeholder="Paste API key" />
 
-      <div class="actions">
-        <button id="loadVideosBtn">Load Videos</button>
-        <button id="exportPdfBtn" disabled>Export PDF</button>
-      </div>
+          <div class="actions">
+            <button id="loadVideosBtn">Load Videos</button>
+            <button id="exportPdfBtn" disabled>Export PDF</button>
+          </div>
 
-      <label for="videoList">Videos</label>
-      <select id="videoList" size="8"></select>
+          <label for="videoList">Videos</label>
+          <select id="videoList" size="8"></select>
 
-      <p id="loading" class="loading hidden">Loading...</p>
-      <p id="error" class="error hidden"></p>
-      <p id="success" class="success hidden"></p>
+          <p id="loading" class="status loading hidden">Loading...</p>
+          <p id="error" class="status error hidden"></p>
+          <p id="success" class="status success hidden"></p>
+        </section>
 
-      <section class="logs-section">
-        <div class="logs-header">
-          <h2>Realtime API Logs</h2>
-          <button id="clearLogsBtn" class="secondary-btn" type="button">Clear Logs</button>
-        </div>
-        <pre id="logs" class="logs" aria-live="polite"></pre>
+        <section class="panel logs-section">
+          <div class="logs-header">
+            <h2>Realtime API Logs</h2>
+            <div class="logs-actions">
+              <span id="logsCount" class="logs-count">0 entries</span>
+              <button id="clearLogsBtn" class="secondary-btn" type="button">Clear Logs</button>
+            </div>
+          </div>
+          <pre id="logs" class="logs" aria-live="polite"></pre>
+        </section>
       </section>
     </main>
 

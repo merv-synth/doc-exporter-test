@@ -16,6 +16,9 @@ const errorEl = document.getElementById("error");
 const successEl = document.getElementById("success");
 const logsEl = document.getElementById("logs");
 const clearLogsBtn = document.getElementById("clearLogsBtn");
+const logsCountEl = document.getElementById("logsCount");
+
+let logEntriesCount = 0;
 
 function setLoading(isLoading) {
   loadingEl.classList.toggle("hidden", !isLoading);
@@ -58,6 +61,15 @@ function formatLogPayload(payload) {
   }
 }
 
+function updateLogsCount() {
+  if (!logsCountEl) {
+    return;
+  }
+
+  const label = logEntriesCount === 1 ? "entry" : "entries";
+  logsCountEl.textContent = `${logEntriesCount} ${label}`;
+}
+
 function addLog(step, payload = "") {
   const now = new Date().toLocaleTimeString();
   const message = `[${now}] ${step}`;
@@ -65,6 +77,8 @@ function addLog(step, payload = "") {
   const line = payloadText ? `${message}\n${payloadText}` : message;
 
   logsEl.textContent += `${line}\n\n`;
+  logEntriesCount += 1;
+  updateLogsCount();
   logsEl.scrollTop = logsEl.scrollHeight;
   console.log("[UI LOG]", step, payload);
 }
@@ -74,6 +88,7 @@ async function fetchWithLogging(url, options = {}) {
     url,
     method: options.method || "GET",
     headers: options.headers || {},
+    bodyType: options.body ? options.body.constructor?.name || typeof options.body : null,
   });
 
   const response = await fetch(url, options);
@@ -231,9 +246,13 @@ videoList.addEventListener("change", () => {
 
 clearLogsBtn.addEventListener("click", () => {
   logsEl.textContent = "";
+  logEntriesCount = 0;
+  updateLogsCount();
   addLog("Logs cleared by user");
 });
 
 loadVideosBtn.addEventListener("click", loadVideos);
 exportPdfBtn.addEventListener("click", exportPdf);
 addLog("UI initialized", { apiBase: API_BASE });
+
+updateLogsCount();
