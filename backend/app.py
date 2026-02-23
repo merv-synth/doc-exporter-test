@@ -17,10 +17,14 @@ SYNTHESIA_API_BASE = os.getenv("SYNTHESIA_API_BASE", "https://api.synthesia.io/v
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "30"))
 
 
+def _normalize_origin(origin: str) -> str:
+    return origin.strip().rstrip("/")
+
+
 def _parse_allowed_origins() -> list[str]:
     configured = os.getenv("ALLOWED_ORIGINS")
     if configured:
-        return [origin.strip() for origin in configured.split(",") if origin.strip()]
+        return [_normalize_origin(origin) for origin in configured.split(",") if origin.strip()]
 
     default_origins = [
         "http://localhost:5500",
@@ -31,7 +35,7 @@ def _parse_allowed_origins() -> list[str]:
 
     pages_origin = os.getenv("GITHUB_PAGES_ORIGIN")
     if pages_origin:
-        default_origins.append(pages_origin.strip().rstrip("/"))
+        default_origins.append(_normalize_origin(pages_origin))
 
     return default_origins
 

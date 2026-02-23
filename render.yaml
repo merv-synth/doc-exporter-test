@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: doc-exporter-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: SYNTHESIA_API_BASE
+        value: https://api.synthesia.io/v2
+      - key: REQUEST_TIMEOUT
+        value: "30"

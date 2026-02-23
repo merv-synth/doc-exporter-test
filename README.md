@@ -22,6 +22,7 @@ doc-exporter-test/
 │   ├── config.js
 │   ├── app.js
 │   └── styles.css
+├── render.yaml
 └── README.md
 ```
 
@@ -32,11 +33,32 @@ Set these URLs for your own deployment:
 - **Frontend (GitHub Pages):** `https://<user>.github.io/<repo>/`
 - **Backend (Render/Fly.io/Railway/etc.):** `https://<your-backend-domain>`
 
-How they connect:
+How frontend and backend are connected:
 
-1. The frontend sends requests to `window.APP_CONFIG.API_BASE_URL` from `frontend/config.js`.
-2. Set `API_BASE_URL` in `frontend/config.js` to your deployed backend URL.
-3. Configure backend CORS (`ALLOWED_ORIGINS`) to include your Pages origin.
+1. Frontend requests are sent to `window.APP_CONFIG.API_BASE_URL` (`frontend/config.js`).
+2. Set `API_BASE_URL` to your deployed backend URL.
+3. Backend CORS must explicitly allow your Pages origin through `ALLOWED_ORIGINS`.
+
+Example:
+
+- Frontend: `https://<user>.github.io/doc-exporter-test/`
+- Backend: `https://doc-exporter-backend.onrender.com`
+- `frontend/config.js` → `API_BASE_URL: "https://doc-exporter-backend.onrender.com"`
+- Backend env → `ALLOWED_ORIGINS=https://<user>.github.io`
+
+## Backend deployment (Render example)
+
+This repo includes `render.yaml` to deploy `backend/app.py` as a Render Web Service.
+
+1. Push the repository to GitHub.
+2. In Render, create a new Blueprint and select this repo.
+3. Render reads `render.yaml` and uses:
+   - build: `pip install -r requirements.txt`
+   - start: `uvicorn app:app --host 0.0.0.0 --port $PORT`
+4. In Render environment variables, set:
+   - `ALLOWED_ORIGINS=https://<user>.github.io`
+   - optionally `REQUEST_TIMEOUT` and `SYNTHESIA_API_BASE`
+5. Copy the deployed backend URL and put it in `frontend/config.js`.
 
 ## Backend environment configuration
 
