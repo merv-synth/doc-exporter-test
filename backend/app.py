@@ -33,8 +33,19 @@ app.add_middleware(
 
 
 def _synthesia_headers(api_key: str) -> dict[str, str]:
+    normalized_key = api_key.strip()
+
+    # Users often paste either a raw key or a value prefixed with "Bearer ".
+    # Keep the original if Bearer is already included, otherwise add it.
+    authorization_value = (
+        normalized_key
+        if normalized_key.lower().startswith("bearer ")
+        else f"Bearer {normalized_key}"
+    )
+
     return {
-        "Authorization": api_key,
+        "Authorization": authorization_value,
+        "X-API-Key": normalized_key,
         "Accept": "application/json",
     }
 
@@ -75,6 +86,9 @@ def _download_xliff(api_key: str, video_id: str) -> bytes:
         except requests.RequestException as exc:
             last_error = str(exc)
             continue
+
+        if response.status_code in (401, 403):
+            raise HTTPException(status_code=401, detail="Invalid Synthesia API key")
 
         if response.status_code == 200 and response.content:
             return _extract_xliff_payload(response)
