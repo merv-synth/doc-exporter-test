@@ -1,4 +1,11 @@
-const API_BASE = "http://localhost:8000";
+const LOCAL_API_BASE = "http://localhost:8000";
+const HOSTNAME_API_BASE_MAP = {
+  localhost: LOCAL_API_BASE,
+  "127.0.0.1": LOCAL_API_BASE,
+};
+
+const API_BASE =
+  window.__API_BASE__ || HOSTNAME_API_BASE_MAP[window.location.hostname] || LOCAL_API_BASE;
 
 const apiKeyInput = document.getElementById("apiKey");
 const loadVideosBtn = document.getElementById("loadVideosBtn");
