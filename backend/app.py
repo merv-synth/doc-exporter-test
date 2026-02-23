@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -12,14 +13,19 @@ from fastapi.responses import FileResponse
 from parser import parse_scenes_from_xliff
 from pdf_generator import generate_pdf
 
-SYNTHESIA_API_BASE = "https://api.synthesia.io/v2"
-REQUEST_TIMEOUT = 30
+SYNTHESIA_API_BASE = os.getenv("SYNTHESIA_API_BASE", "https://api.synthesia.io/v2")
+REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "30"))
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("ALLOWED_ORIGINS", "*").split(",")
+    if origin.strip()
+]
 
 app = FastAPI(title="Synthesia XLIFF PDF Exporter")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS or ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -77,6 +83,11 @@ def _download_xliff(api_key: str, video_id: str) -> bytes:
         status_code=502,
         detail=f"Failed to download XLIFF from Synthesia ({last_error})",
     )
+
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
 
 
 @app.get("/videos")

@@ -1,11 +1,12 @@
 # doc-exporter-test
 
-A self-contained local test environment for exporting Synthesia video script content (from XLIFF) into a PDF.
+A self-contained environment for exporting Synthesia video script content (from XLIFF) into a PDF.
 
 This project includes:
 
-- **FastAPI backend** (local) for API calls, XLIFF parsing, and PDF generation
-- **Static frontend** compatible with GitHub Pages
+- **FastAPI backend** for API calls, XLIFF parsing, and PDF generation
+- **Static frontend** (works locally and on GitHub Pages)
+- **Docker Compose** setup for one-command local run
 
 ## Project structure
 
@@ -16,63 +17,85 @@ doc-exporter-test/
 │   ├── parser.py
 │   ├── pdf_generator.py
 │   ├── requirements.txt
+│   ├── Dockerfile
 │   └── README.md
 ├── frontend/
 │   ├── index.html
 │   ├── app.js
+│   ├── config.js
 │   └── styles.css
+├── docker-compose.yml
+├── .env.example
 └── README.md
 ```
 
-## Run backend locally
+## Quick start (Docker)
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+Then open:
+
+- Frontend: <http://localhost:5500>
+- Backend docs: <http://localhost:8000/docs>
+- Backend health check: <http://localhost:8000/healthz>
+
+## Run without Docker
+
+### Backend
 
 ```bash
 cd backend
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-uvicorn app:app --reload
+uvicorn app:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Open API docs:
-
-- <http://localhost:8000/docs>
-
-## Serve frontend locally
-
-From the repository root:
+### Frontend
 
 ```bash
 cd frontend
 python -m http.server 5500
 ```
 
-Then open:
+Open <http://localhost:5500>.
 
-- <http://localhost:5500>
+## Configuration
 
-`frontend/app.js` resolves API base dynamically with a local default:
+Backend environment variables:
 
-- Runtime override: `window.__API_BASE__` from `frontend/config.js`
-- Hostname fallback map (for local hostnames)
-- Local default: `http://localhost:8000`
+- `ALLOWED_ORIGINS` (default: `*`) — comma-separated CORS allow-list
+- `REQUEST_TIMEOUT` (default: `30`) — timeout in seconds for Synthesia API calls
+- `SYNTHESIA_API_BASE` (default: `https://api.synthesia.io/v2`)
 
-## GitHub Pages deployment (frontend only)
+Frontend backend URL resolution order:
 
-1. Push this repository to GitHub.
+1. `window.__API_BASE__` from `frontend/config.js`
+2. Hostname map in `frontend/app.js`
+3. Local fallback `http://localhost:8000`
+
+## Deployment
+
+### Frontend (GitHub Pages)
+
+1. Push repository to GitHub.
 2. Go to **Settings → Pages**.
-3. Under **Build and deployment**, set:
-   - **Source:** Deploy from a branch
-   - **Branch:** `main`
-   - **Folder:** `/frontend`
-4. Save and wait for Pages URL to be published.
-5. In `frontend/config.js`, set `window.__API_BASE__` to your production backend URL.
-   Example:
-   ```js
-   window.__API_BASE__ = "https://your-backend.example.com";
-   ```
-6. Commit and push the config change so Pages serves the updated endpoint.
-7. For local development, keep `window.__API_BASE__` empty to fall back to `http://localhost:8000`.
+3. Set source to **Deploy from a branch**, branch to `main`, folder to `/frontend`.
+4. Set `window.__API_BASE__` in `frontend/config.js` to your deployed backend URL.
+5. Commit and push.
+
+### Backend
+
+Use any platform that supports container deploys (Render, Railway, Fly.io, ECS, etc.) with:
+
+- Build context: `backend/`
+- Exposed port: `8000`
+- Start command: `uvicorn app:app --host 0.0.0.0 --port 8000`
+- Health check path: `/healthz`
+- Environment variable: `ALLOWED_ORIGINS=https://<your-pages-domain>`
 
 ## Example curl commands
 
@@ -91,12 +114,6 @@ curl -X POST "http://localhost:8000/export-pdf" \
   --output export.pdf
 ```
 
-## Notes
-
-- No AWS, Cognito, queues, or external infrastructure required.
-- Built for local end-to-end testing.
-
 ## Security
 
-This setup is intended for **local testing only**.
-Do not expose this backend publicly with unrestricted CORS and direct API key handling.
+Do not expose this backend publicly with unrestricted CORS and direct API key handling in production without proper hardening.
