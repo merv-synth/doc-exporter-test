@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import json
 import re
 import unicodedata
 import xml.etree.ElementTree as ET
@@ -22,7 +23,22 @@ def sanitize_xliff_content(xliff_content: str) -> str:
     if not xliff_content:
         return ""
 
-    stripped = xliff_content.lstrip("\ufeff\n\r\t ")
+    text = xliff_content.strip()
+
+    if text.startswith("{"):
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError:
+            payload = None
+
+        if isinstance(payload, dict):
+            for key in ("xliff", "content", "data"):
+                value = payload.get(key)
+                if isinstance(value, str) and "<xliff" in value:
+                    text = value
+                    break
+
+    stripped = text.lstrip("\ufeff\n\r\t ")
     xliff_start = stripped.find("<")
     return stripped[xliff_start:] if xliff_start >= 0 else stripped
 
@@ -62,14 +78,32 @@ def parse_srt(srt_content: str) -> list[dict[str, Any]]:
     return cues
 
 
-def _get_xliff_paths(root: ET.Element) -> tuple[dict[str, str], str, str, str, str]:
+def _get_xliff_paths(root: ET.Element) -> tuple[dict[str, str], str, str, str]:
     ns = {"ns": "urn:oasis:names:tc:xliff:document:1.2"}
     if not root.findall(".//ns:group", ns):
         ns = {}
 
     if ns:
-        return ns, ".//ns:group", "ns:trans-unit", "ns:source", ".//ns:g[@tag='voice']"
-    return ns, ".//group", "trans-unit", "source", ".//g[@tag='voice']"
+        return ns, ".//ns:group", "ns:trans-unit", "ns:source"
+    return ns, ".//group", "trans-unit", "source"
+
+
+def _extract_voice_texts(source: ET.Element) -> list[str]:
+    texts: list[str] = []
+    for element in source.iter():
+        if not element.tag.endswith('g'):
+            continue
+
+        tag = element.attrib.get("tag")
+        ctype = element.attrib.get("ctype")
+        if tag != "voice" and ctype != "x-syn-voice":
+            continue
+
+        voice_text = "".join(element.itertext()).strip()
+        if voice_text:
+            texts.append(voice_text)
+
+    return texts
 
 
 def parse_scenes_from_xliff(xliff_content: bytes) -> list[dict[str, list[str] | str]]:
@@ -82,7 +116,7 @@ def parse_scenes_from_xliff(xliff_content: bytes) -> list[dict[str, list[str] | 
         logger.error("XLIFF parse error after sanitization: %s", exc)
         raise ValueError("Invalid XLIFF content") from exc
 
-    ns, group_path, trans_unit_path, source_path, voice_path = _get_xliff_paths(root)
+    ns, group_path, trans_unit_path, source_path = _get_xliff_paths(root)
 
     scenes: list[dict[str, list[str] | str]] = []
     for group in root.findall(group_path, ns):
@@ -98,14 +132,11 @@ def parse_scenes_from_xliff(xliff_content: bytes) -> list[dict[str, list[str] | 
             if source is None:
                 continue
 
-            had_voice_text = False
-            for voice in source.findall(voice_path, ns):
-                text = "".join(voice.itertext()).strip()
-                if text:
-                    lines.append(text)
-                    had_voice_text = True
+            voice_texts = _extract_voice_texts(source)
+            if voice_texts:
+                lines.extend(voice_texts)
 
-            if not had_voice_text:
+            if not voice_texts:
                 source_text = "".join(source.itertext()).strip()
                 if source_text:
                     lines.append(source_text)
@@ -122,7 +153,7 @@ def parse_scenes_from_srt_and_xliff(srt_path: str, xliff_path: str) -> list[dict
     cleaned = sanitize_xliff_content(xliff_raw)
 
     root = ET.fromstring(cleaned)
-    ns, group_path, trans_unit_path, source_path, voice_path = _get_xliff_paths(root)
+    ns, group_path, trans_unit_path, source_path = _get_xliff_paths(root)
 
     all_scenes_from_xliff: list[dict[str, Any]] = []
     for i, group in enumerate(root.findall(group_path, ns)):
@@ -138,14 +169,11 @@ def parse_scenes_from_srt_and_xliff(srt_path: str, xliff_path: str) -> list[dict
             if source is None:
                 continue
 
-            had_voice_text = False
-            for voice in source.findall(voice_path, ns):
-                text = "".join(voice.itertext()).strip()
-                if text:
-                    parts.append(text)
-                    had_voice_text = True
+            voice_texts = _extract_voice_texts(source)
+            if voice_texts:
+                parts.extend(voice_texts)
 
-            if not had_voice_text:
+            if not voice_texts:
                 source_text = "".join(source.itertext()).strip()
                 if source_text:
                     parts.append(source_text)

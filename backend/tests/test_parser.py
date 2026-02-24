@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import textwrap
 import unittest
@@ -37,6 +38,20 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(
             scenes,
             [{"scene_id": "scene_1", "script": ["Hello there", "General Kenobi"]}],
+        )
+
+
+    def test_parse_scenes_from_xliff_supports_json_wrapped_japanese_xliff(self) -> None:
+        xliff = """<?xml version='1.0' encoding='utf-8'?>
+<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2"><file><body><group id="scene__ja"><trans-unit id="script__scene__ja"><source><g ctype="x-syn-voice">やあ、ようこそ。
+次へ進むにはボタンをクリック。</g></source></trans-unit></group></body></file></xliff>"""
+        payload = json.dumps({"xliff": xliff}).encode("utf-8")
+
+        scenes = parse_scenes_from_xliff(payload)
+
+        self.assertEqual(
+            scenes,
+            [{"scene_id": "scene__ja", "script": ["やあ、ようこそ。\n次へ進むにはボタンをクリック。"]}],
         )
 
     def test_parse_srt_invalid_returns_empty(self) -> None:
