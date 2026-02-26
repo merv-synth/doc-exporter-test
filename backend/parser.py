@@ -43,6 +43,23 @@ def sanitize_xliff_content(xliff_content: str) -> str:
     return stripped[xliff_start:] if xliff_start >= 0 else stripped
 
 
+def _decode_xliff_bytes(xliff_content: bytes) -> str:
+    """Decode XLIFF bytes while preserving non-ASCII text where possible."""
+    if not xliff_content:
+        return ""
+
+    for encoding in ("utf-8-sig", "utf-16", "utf-16-le", "utf-16-be"):
+        try:
+            decoded = xliff_content.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+
+        if "<xliff" in decoded or decoded.lstrip().startswith("{"):
+            return decoded
+
+    return xliff_content.decode("utf-8", errors="replace")
+
+
 def normalize(text: str) -> str:
     """Unicode-aware normalization for matching across all scripts."""
     if not text:
@@ -108,7 +125,7 @@ def _extract_voice_texts(source: ET.Element) -> list[str]:
 
 def parse_scenes_from_xliff(xliff_content: bytes) -> list[dict[str, list[str] | str]]:
     """Parse Synthesia scene scripts from an XLIFF 1.2 document with namespace safety."""
-    cleaned = sanitize_xliff_content(xliff_content.decode("utf-8", errors="ignore"))
+    cleaned = sanitize_xliff_content(_decode_xliff_bytes(xliff_content))
 
     try:
         root = ET.fromstring(cleaned)

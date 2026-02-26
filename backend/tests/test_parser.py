@@ -54,6 +54,17 @@ class ParserTests(unittest.TestCase):
             [{"scene_id": "scene__ja", "script": ["やあ、ようこそ。\n次へ進むにはボタンをクリック。"]}],
         )
 
+    def test_parse_scenes_from_xliff_supports_utf16_japanese_xliff(self) -> None:
+        xliff = """<?xml version='1.0' encoding='utf-16'?>
+<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2"><file><body><group id="scene_utf16"><trans-unit id="script__scene__ja"><source><g tag="voice">日本語のテキストです。</g></source></trans-unit></group></body></file></xliff>""".encode("utf-16")
+
+        scenes = parse_scenes_from_xliff(xliff)
+
+        self.assertEqual(
+            scenes,
+            [{"scene_id": "scene_utf16", "script": ["日本語のテキストです。"]}],
+        )
+
     def test_parse_srt_invalid_returns_empty(self) -> None:
         self.assertEqual(parse_srt("not an srt"), [])
 
