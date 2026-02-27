@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
@@ -169,6 +170,7 @@ def get_font_for_text(text: str) -> str:
 def _clone_with_font(style: ParagraphStyle, text: str, style_name: str) -> ParagraphStyle:
     style_with_font = style.clone(style_name)
     style_with_font.fontName = get_font_for_text(text)
+    style_with_font.textColor = colors.black
     return style_with_font
 
 
