@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from parser import parse_scenes_from_xliff
-from pdf_generator import generate_pdf, get_font_for_text
+from pdf_generator import _escape_paragraph_text, generate_pdf, get_font_for_text
 
 
 class PdfGeneratorTests(unittest.TestCase):
@@ -53,6 +53,13 @@ class PdfGeneratorTests(unittest.TestCase):
 
         with patch("pdf_generator._register_font_candidates", return_value="STSong-Light"):
             self.assertEqual(get_font_for_text("简体中文"), "STSong-Light")
+
+
+    def test_escape_paragraph_text_disables_inline_font_color_markup(self) -> None:
+        input_text = '<font color="white">สวัสดีค่ะ</font>'
+        escaped = _escape_paragraph_text(input_text)
+
+        self.assertEqual(escaped, '&lt;font color="white"&gt;สวัสดีค่ะ&lt;/font&gt;')
 
     def test_generate_pdf_from_parsed_api_style_thai_scene(self) -> None:
         payload = {

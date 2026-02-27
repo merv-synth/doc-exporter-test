@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from xml.sax.saxutils import escape
 
+from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
@@ -166,9 +168,15 @@ def get_font_for_text(text: str) -> str:
     return "Helvetica"
 
 
+def _escape_paragraph_text(text: str) -> str:
+    """Escape user-provided text so ReportLab does not apply inline XML styling."""
+    return escape(text)
+
+
 def _clone_with_font(style: ParagraphStyle, text: str, style_name: str) -> ParagraphStyle:
     style_with_font = style.clone(style_name)
     style_with_font.fontName = get_font_for_text(text)
+    style_with_font.textColor = colors.black
     return style_with_font
 
 
@@ -185,13 +193,13 @@ def generate_pdf(scenes: list[dict[str, list[str] | str]], output_path: Path) ->
 
         heading_text = f"Scene: {scene_id}"
         heading_style = _clone_with_font(heading_base, heading_text, f"SceneHeading_{scene_id}")
-        story.append(Paragraph(heading_text, heading_style))
+        story.append(Paragraph(_escape_paragraph_text(heading_text), heading_style))
         story.append(Spacer(1, 4 * mm))
 
         for line_index, line in enumerate(script_lines):
             line_text = str(line)
             body_style = _clone_with_font(body_base, line_text, f"SceneBody_{scene_id}_{line_index}")
-            story.append(Paragraph(line_text, body_style))
+            story.append(Paragraph(_escape_paragraph_text(line_text), body_style))
             story.append(Spacer(1, 2.5 * mm))
 
         story.append(Spacer(1, 5 * mm))
