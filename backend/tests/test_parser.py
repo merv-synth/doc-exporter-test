@@ -169,6 +169,33 @@ class ParserTests(unittest.TestCase):
         self.assertAlmostEqual(scenes[2]["start_time"], 1.2)
         self.assertAlmostEqual(scenes[2]["end_time"], 2.0)
 
+    def test_parse_scenes_from_srt_and_xliff_supports_utf16_thai_xliff(self) -> None:
+        xliff = """<?xml version='1.0' encoding='utf-16'?>
+<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2"><file><body><group id="scene_th"><trans-unit id="script__scene__th"><source><g ctype="x-syn-voice">สวัสดีค่ะ</g></source></trans-unit></group></body></file></xliff>""".encode("utf-16")
+
+        srt_text = textwrap.dedent(
+            """\
+            1
+            00:00:00,000 --> 00:00:01,000
+            สวัสดีค่ะ
+            """
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            xliff_path = tmp_path / "captions_utf16.xliff"
+            srt_path = tmp_path / "captions.srt"
+            xliff_path.write_bytes(xliff)
+            srt_path.write_text(srt_text, encoding="utf-8")
+
+            scenes = parse_scenes_from_srt_and_xliff(str(srt_path), str(xliff_path))
+
+        self.assertEqual(len(scenes), 1)
+        self.assertEqual(scenes[0]["id"], "scene_th")
+        self.assertEqual(scenes[0]["script"], "สวัสดีค่ะ")
+        self.assertAlmostEqual(scenes[0]["start_time"], 0.0)
+        self.assertAlmostEqual(scenes[0]["end_time"], 1.0)
+
     def test_normalize_handles_unicode(self) -> None:
         self.assertEqual(normalize("Ｈéllo—１２3"), "héllo123")
 

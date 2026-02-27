@@ -166,8 +166,8 @@ def parse_scenes_from_xliff(xliff_content: bytes) -> list[dict[str, list[str] | 
 
 def parse_scenes_from_srt_and_xliff(srt_path: str, xliff_path: str) -> list[dict[str, Any]]:
     """Extract scenes from XLIFF and align script scenes against SRT cue timings."""
-    xliff_raw = Path(xliff_path).read_text(encoding="utf-8", errors="ignore")
-    cleaned = sanitize_xliff_content(xliff_raw)
+    xliff_raw = Path(xliff_path).read_bytes()
+    cleaned = sanitize_xliff_content(_decode_xliff_bytes(xliff_raw))
 
     root = ET.fromstring(cleaned)
     ns, group_path, trans_unit_path, source_path = _get_xliff_paths(root)
