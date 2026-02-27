@@ -69,7 +69,7 @@ def normalize(text: str) -> str:
     return "".join(
         ch
         for ch in text.casefold()
-        if unicodedata.category(ch)[0] in ("L", "N")
+        if unicodedata.category(ch)[0] in ("L", "N", "M")
     )
 
 
