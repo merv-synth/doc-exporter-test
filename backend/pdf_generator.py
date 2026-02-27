@@ -3,44 +3,149 @@ from __future__ import annotations
 from pathlib import Path
 
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
-JAPANESE_FONT_NAME = "HeiseiKakuGo-W5"
+LANGUAGE_FONT_CANDIDATES: dict[str, tuple[str, ...]] = {
+    "japanese": ("HeiseiKakuGo-W5",),
+    "chinese_traditional": ("MSung-Light", "HeiseiKakuGo-W5"),
+    "chinese_simplified": ("STSong-Light", "HeiseiKakuGo-W5"),
+    "korean": ("HYSMyeongJo-Medium", "HeiseiKakuGo-W5"),
+}
+THAI_FONT_NAME = "NotoSansThai"
+THAI_FONT_PATHS = (
+    "/usr/share/fonts/truetype/noto/NotoSansThai-Regular.ttf",
+    "/usr/share/fonts/opentype/noto/NotoSansThai-Regular.ttf",
+)
+DEFAULT_UNICODE_FONT = "HeiseiKakuGo-W5"
 
 
-def _ensure_japanese_font_registered() -> str:
-    """Register a CJK-capable font and return its name."""
+def _register_cid_font(font_name: str) -> str | None:
     try:
-        pdfmetrics.getFont(JAPANESE_FONT_NAME)
+        pdfmetrics.getFont(font_name)
+        return font_name
     except KeyError:
-        pdfmetrics.registerFont(UnicodeCIDFont(JAPANESE_FONT_NAME))
-    return JAPANESE_FONT_NAME
+        pass
+
+    try:
+        pdfmetrics.registerFont(UnicodeCIDFont(font_name))
+        return font_name
+    except Exception:
+        return None
+
+
+def _register_thai_font() -> str | None:
+    try:
+        pdfmetrics.getFont(THAI_FONT_NAME)
+        return THAI_FONT_NAME
+    except KeyError:
+        pass
+
+    for font_path in THAI_FONT_PATHS:
+        if not Path(font_path).exists():
+            continue
+
+        try:
+            pdfmetrics.registerFont(TTFont(THAI_FONT_NAME, font_path))
+            return THAI_FONT_NAME
+        except Exception:
+            continue
+
+    return None
+
+
+def _is_thai(text: str) -> bool:
+    return any("\u0E00" <= ch <= "\u0E7F" for ch in text)
+
+
+def _is_hangul(text: str) -> bool:
+    return any("\uAC00" <= ch <= "\uD7A3" for ch in text)
+
+
+def _is_hiragana_or_katakana(text: str) -> bool:
+    return any("\u3040" <= ch <= "\u30FF" for ch in text)
+
+
+def _contains_cjk_unified(text: str) -> bool:
+    return any("\u4E00" <= ch <= "\u9FFF" for ch in text)
+
+
+def _prefer_traditional_chinese(text: str) -> bool:
+    traditional_markers = "這個為與學體臺灣繁體龍門廣國"
+    simplified_markers = "这个为与学体台湾繁体龙门广国"
+    traditional_hits = sum(marker in text for marker in traditional_markers)
+    simplified_hits = sum(marker in text for marker in simplified_markers)
+    return traditional_hits >= simplified_hits
+
+
+def _register_font_candidates(font_names: tuple[str, ...]) -> str | None:
+    for font_name in font_names:
+        registered = _register_cid_font(font_name)
+        if registered:
+            return registered
+    return None
+
+
+def get_font_for_text(text: str) -> str:
+    """Return the best available font for the given text."""
+    if _is_thai(text):
+        thai_font = _register_thai_font()
+        if thai_font:
+            return thai_font
+
+    if _is_hangul(text):
+        korean_font = _register_font_candidates(LANGUAGE_FONT_CANDIDATES["korean"])
+        if korean_font:
+            return korean_font
+
+    if _is_hiragana_or_katakana(text):
+        japanese_font = _register_font_candidates(LANGUAGE_FONT_CANDIDATES["japanese"])
+        if japanese_font:
+            return japanese_font
+
+    if _contains_cjk_unified(text):
+        zh_key = "chinese_traditional" if _prefer_traditional_chinese(text) else "chinese_simplified"
+        chinese_font = _register_font_candidates(LANGUAGE_FONT_CANDIDATES[zh_key])
+        if chinese_font:
+            return chinese_font
+
+    fallback = _register_cid_font(DEFAULT_UNICODE_FONT)
+    if fallback:
+        return fallback
+
+    return "Helvetica"
+
+
+def _clone_with_font(style: ParagraphStyle, text: str, style_name: str) -> ParagraphStyle:
+    style_with_font = style.clone(style_name)
+    style_with_font.fontName = get_font_for_text(text)
+    return style_with_font
 
 
 def generate_pdf(scenes: list[dict[str, list[str] | str]], output_path: Path) -> None:
     """Generate a PDF from parsed scenes and script lines."""
     styles = getSampleStyleSheet()
-    heading_style = styles["Heading2"].clone("SceneHeadingCJK")
-    body_style = styles["BodyText"].clone("SceneBodyCJK")
-
-    cjk_font = _ensure_japanese_font_registered()
-    heading_style.fontName = cjk_font
-    body_style.fontName = cjk_font
+    heading_base = styles["Heading2"]
+    body_base = styles["BodyText"]
 
     story = []
     for scene in scenes:
         scene_id = str(scene["scene_id"])
         script_lines = scene["script"]
 
-        story.append(Paragraph(f"Scene: {scene_id}", heading_style))
+        heading_text = f"Scene: {scene_id}"
+        heading_style = _clone_with_font(heading_base, heading_text, f"SceneHeading_{scene_id}")
+        story.append(Paragraph(heading_text, heading_style))
         story.append(Spacer(1, 4 * mm))
 
-        for line in script_lines:
-            story.append(Paragraph(str(line), body_style))
+        for line_index, line in enumerate(script_lines):
+            line_text = str(line)
+            body_style = _clone_with_font(body_base, line_text, f"SceneBody_{scene_id}_{line_index}")
+            story.append(Paragraph(line_text, body_style))
             story.append(Spacer(1, 2.5 * mm))
 
         story.append(Spacer(1, 5 * mm))

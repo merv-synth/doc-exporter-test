@@ -33,6 +33,18 @@ docker compose up --build backend
 - `REQUEST_TIMEOUT` (default: `30`) — Synthesia API request timeout in seconds
 - `SYNTHESIA_API_BASE` (default: `https://api.synthesia.io/v2`)
 
+## Language support
+
+PDF export includes script-aware font selection for:
+
+- Chinese (Traditional)
+- Chinese (Simplified)
+- Thai
+- Korean
+- Japanese (Polite / standard Japanese text)
+
+For Thai rendering in containerized environments, the Docker image installs `fonts-noto-core`.
+
 ## Endpoints
 
 - `GET /healthz`
