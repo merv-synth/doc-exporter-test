@@ -16,10 +16,28 @@ LANGUAGE_FONT_CANDIDATES: dict[str, tuple[str, ...]] = {
     "chinese_simplified": ("STSong-Light", "HeiseiKakuGo-W5"),
     "korean": ("HYSMyeongJo-Medium", "HeiseiKakuGo-W5"),
 }
-THAI_FONT_NAME = "NotoSansThai"
-THAI_FONT_PATHS = (
-    "/usr/share/fonts/truetype/noto/NotoSansThai-Regular.ttf",
-    "/usr/share/fonts/opentype/noto/NotoSansThai-Regular.ttf",
+THAI_FONT_CANDIDATES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    (
+        "NotoSansThai",
+        (
+            "/usr/share/fonts/truetype/noto/NotoSansThai-Regular.ttf",
+            "/usr/share/fonts/opentype/noto/NotoSansThai-Regular.ttf",
+        ),
+    ),
+    (
+        "NotoSansThaiUI",
+        (
+            "/usr/share/fonts/truetype/noto/NotoSansThaiUI-Regular.ttf",
+            "/usr/share/fonts/opentype/noto/NotoSansThaiUI-Regular.ttf",
+        ),
+    ),
+    (
+        "TLWGGaruda",
+        (
+            "/usr/share/fonts/truetype/tlwg/Garuda.ttf",
+            "/usr/share/fonts/truetype/tlwg/Garuda-Regular.ttf",
+        ),
+    ),
 )
 UNICODE_TTF_FALLBACK_NAME = "DejaVuSans"
 UNICODE_TTF_FALLBACK_PATHS = (
@@ -43,22 +61,31 @@ def _register_cid_font(font_name: str) -> str | None:
         return None
 
 
-def _register_thai_font() -> str | None:
+def _register_ttf_font(font_name: str, font_paths: tuple[str, ...]) -> str | None:
     try:
-        pdfmetrics.getFont(THAI_FONT_NAME)
-        return THAI_FONT_NAME
+        pdfmetrics.getFont(font_name)
+        return font_name
     except KeyError:
         pass
 
-    for font_path in THAI_FONT_PATHS:
+    for font_path in font_paths:
         if not Path(font_path).exists():
             continue
 
         try:
-            pdfmetrics.registerFont(TTFont(THAI_FONT_NAME, font_path))
-            return THAI_FONT_NAME
+            pdfmetrics.registerFont(TTFont(font_name, font_path))
+            return font_name
         except Exception:
             continue
+
+    return None
+
+
+def _register_thai_font() -> str | None:
+    for font_name, font_paths in THAI_FONT_CANDIDATES:
+        registered_font = _register_ttf_font(font_name, font_paths)
+        if registered_font:
+            return registered_font
 
     return None
 
@@ -70,17 +97,7 @@ def _register_unicode_ttf_fallback() -> str | None:
     except KeyError:
         pass
 
-    for font_path in UNICODE_TTF_FALLBACK_PATHS:
-        if not Path(font_path).exists():
-            continue
-
-        try:
-            pdfmetrics.registerFont(TTFont(UNICODE_TTF_FALLBACK_NAME, font_path))
-            return UNICODE_TTF_FALLBACK_NAME
-        except Exception:
-            continue
-
-    return None
+    return _register_ttf_font(UNICODE_TTF_FALLBACK_NAME, UNICODE_TTF_FALLBACK_PATHS)
 
 
 def _is_thai(text: str) -> bool:
