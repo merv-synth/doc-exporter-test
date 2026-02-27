@@ -21,6 +21,11 @@ THAI_FONT_PATHS = (
     "/usr/share/fonts/truetype/noto/NotoSansThai-Regular.ttf",
     "/usr/share/fonts/opentype/noto/NotoSansThai-Regular.ttf",
 )
+UNICODE_TTF_FALLBACK_NAME = "DejaVuSans"
+UNICODE_TTF_FALLBACK_PATHS = (
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/TTF/DejaVuSans.ttf",
+)
 DEFAULT_UNICODE_FONT = "HeiseiKakuGo-W5"
 
 
@@ -52,6 +57,26 @@ def _register_thai_font() -> str | None:
         try:
             pdfmetrics.registerFont(TTFont(THAI_FONT_NAME, font_path))
             return THAI_FONT_NAME
+        except Exception:
+            continue
+
+    return None
+
+
+def _register_unicode_ttf_fallback() -> str | None:
+    try:
+        pdfmetrics.getFont(UNICODE_TTF_FALLBACK_NAME)
+        return UNICODE_TTF_FALLBACK_NAME
+    except KeyError:
+        pass
+
+    for font_path in UNICODE_TTF_FALLBACK_PATHS:
+        if not Path(font_path).exists():
+            continue
+
+        try:
+            pdfmetrics.registerFont(TTFont(UNICODE_TTF_FALLBACK_NAME, font_path))
+            return UNICODE_TTF_FALLBACK_NAME
         except Exception:
             continue
 
@@ -96,6 +121,10 @@ def get_font_for_text(text: str) -> str:
         thai_font = _register_thai_font()
         if thai_font:
             return thai_font
+
+        unicode_ttf_fallback = _register_unicode_ttf_fallback()
+        if unicode_ttf_fallback:
+            return unicode_ttf_fallback
 
     if _is_hangul(text):
         korean_font = _register_font_candidates(LANGUAGE_FONT_CANDIDATES["korean"])

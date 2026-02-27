@@ -35,6 +35,11 @@ class PdfGeneratorTests(unittest.TestCase):
         with patch("pdf_generator._register_thai_font", return_value="NotoSansThai"):
             self.assertEqual(get_font_for_text("ภาษาไทย"), "NotoSansThai")
 
+        with patch("pdf_generator._register_thai_font", return_value=None), patch(
+            "pdf_generator._register_unicode_ttf_fallback", return_value="DejaVuSans"
+        ):
+            self.assertEqual(get_font_for_text("ภาษาไทย"), "DejaVuSans")
+
         with patch("pdf_generator._register_font_candidates", return_value="HYSMyeongJo-Medium"):
             self.assertEqual(get_font_for_text("한국어"), "HYSMyeongJo-Medium")
 
