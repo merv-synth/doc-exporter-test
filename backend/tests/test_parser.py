@@ -123,6 +123,9 @@ class ParserTests(unittest.TestCase):
     def test_normalize_handles_unicode(self) -> None:
         self.assertEqual(normalize("Ｈéllo—１２3"), "héllo123")
 
+    def test_normalize_preserves_thai_diacritics(self) -> None:
+        self.assertEqual(normalize("ดําเนินการต่อ"), "ดําเนินการต่อ")
+
 
 if __name__ == "__main__":
     unittest.main()
