@@ -68,6 +68,41 @@ class ParserTests(unittest.TestCase):
             [{"scene_id": "scene__th", "script": ["สวัสดีค่ะ\nคลิกที่นี่เพื่อดำเนินการต่อ"]}],
         )
 
+    def test_parse_scenes_from_xliff_supports_api_style_thai_response(self) -> None:
+        xliff = textwrap.dedent(
+            """\
+            <?xml version='1.0' encoding='utf-8'?>
+            <xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2" xmlns:syn="urn:synthesia:video">
+              <file original="TH demo" datatype="html" source-language="th" syn:video-id="v1" syn:snapshot-id="s1">
+                <body>
+                  <group id="scene__d056a155">
+                    <trans-unit id="script__scene__d056a155">
+                      <source><g id="1" ctype="x-syn-voice" syn:voice-id="voice-1">สวัสดีค่ะ และยินดีต้อนรับ\nคลิกที่นี่เพื่อดําเนินการต่อ</g></source>
+                    </trans-unit>
+                    <trans-unit id="element__title__scene__d056a155">
+                      <source><g id="1" ctype="x-html-p">ภาพรวมชีวิต</g></source>
+                    </trans-unit>
+                  </group>
+                  <group id="scene__0534f09e">
+                    <trans-unit id="script__scene__0534f09e">
+                      <source><g id="1" ctype="x-syn-voice" syn:voice-id="voice-1">แนวทางการนําทาง\nหากต้องการไปยังสไลด์ถัดไป</g></source>
+                    </trans-unit>
+                  </group>
+                </body>
+              </file>
+            </xliff>
+            """
+        )
+        payload = json.dumps({"xliff": xliff}).encode("utf-8")
+
+        scenes = parse_scenes_from_xliff(payload)
+
+        self.assertEqual(len(scenes), 2)
+        self.assertEqual(scenes[0]["scene_id"], "scene__d056a155")
+        self.assertIn("สวัสดีค่ะ", scenes[0]["script"][0])
+        self.assertIn("คลิกที่นี่เพื่อดําเนินการต่อ", scenes[0]["script"][0])
+        self.assertEqual(scenes[1]["scene_id"], "scene__0534f09e")
+
     def test_parse_scenes_from_xliff_supports_utf16_japanese_xliff(self) -> None:
         xliff = """<?xml version='1.0' encoding='utf-16'?>
 <xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2"><file><body><group id="scene_utf16"><trans-unit id="script__scene__ja"><source><g tag="voice">日本語のテキストです。</g></source></trans-unit></group></body></file></xliff>""".encode("utf-16")

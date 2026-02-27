@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from parser import parse_scenes_from_xliff
 from pdf_generator import generate_pdf, get_font_for_text
 
 
@@ -51,6 +53,23 @@ class PdfGeneratorTests(unittest.TestCase):
 
         with patch("pdf_generator._register_font_candidates", return_value="STSong-Light"):
             self.assertEqual(get_font_for_text("简体中文"), "STSong-Light")
+
+    def test_generate_pdf_from_parsed_api_style_thai_scene(self) -> None:
+        payload = {
+            "xliff": """<?xml version='1.0' encoding='utf-8'?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2" xmlns:syn="urn:synthesia:video"><file source-language="th"><body><group id="scene__th"><trans-unit id="script__scene__th"><source><g ctype="x-syn-voice" syn:voice-id="v1">สวัสดีค่ะ และยินดีต้อนรับ
+คลิกที่นี่เพื่อดำเนินการต่อ</g></source></trans-unit></group></body></file></xliff>"""
+        }
+
+        scenes = parse_scenes_from_xliff(json.dumps(payload).encode("utf-8"))
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_path = Path(tmp_dir) / "thai.pdf"
+            generate_pdf(scenes, output_path)
+            pdf_bytes = output_path.read_bytes()
+
+        self.assertGreater(len(pdf_bytes), 1000)
+        self.assertIn(get_font_for_text("สวัสดีค่ะ").encode("utf-8"), pdf_bytes)
 
 
 if __name__ == "__main__":
