@@ -68,6 +68,29 @@ class ParserTests(unittest.TestCase):
             [{"scene_id": "scene__th", "script": ["สวัสดีค่ะ\nคลิกที่นี่เพื่อดำเนินการต่อ"]}],
         )
 
+    def test_parse_scenes_from_xliff_supports_nested_json_response(self) -> None:
+        xliff = """<?xml version='1.0' encoding='utf-8'?>
+<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2"><file><body><group id="scene_nested"><trans-unit id="script__scene__nested"><source><g ctype="x-syn-voice">Nested payload</g></source></trans-unit></group></body></file></xliff>"""
+        payload = json.dumps({"meta": {"status": "ok"}, "data": {"xliff": xliff}}).encode("utf-8")
+
+        scenes = parse_scenes_from_xliff(payload)
+
+        self.assertEqual(
+            scenes,
+            [{"scene_id": "scene_nested", "script": ["Nested payload"]}],
+        )
+
+    def test_parse_scenes_from_xliff_supports_html_escaped_xliff(self) -> None:
+        escaped_xliff = "&lt;xliff xmlns=\"urn:oasis:names:tc:xliff:document:1.2\" version=\"1.2\"&gt;&lt;file&gt;&lt;body&gt;&lt;group id=\"scene_escaped\"&gt;&lt;trans-unit id=\"script__scene__escaped\"&gt;&lt;source&gt;&lt;g ctype=\"x-syn-voice\"&gt;Escaped payload&lt;/g&gt;&lt;/source&gt;&lt;/trans-unit&gt;&lt;/group&gt;&lt;/body&gt;&lt;/file&gt;&lt;/xliff&gt;"
+        payload = json.dumps({"data": {"content": escaped_xliff}}).encode("utf-8")
+
+        scenes = parse_scenes_from_xliff(payload)
+
+        self.assertEqual(
+            scenes,
+            [{"scene_id": "scene_escaped", "script": ["Escaped payload"]}],
+        )
+
     def test_parse_scenes_from_xliff_supports_api_style_thai_response(self) -> None:
         xliff = textwrap.dedent(
             """\

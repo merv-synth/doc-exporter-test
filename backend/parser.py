@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import json
+import html
 import re
 import unicodedata
 import xml.etree.ElementTree as ET
@@ -18,6 +19,38 @@ SRT_BLOCK_RE = re.compile(
 )
 
 
+def _find_xliff_value(payload: Any) -> str | None:
+    """Recursively find an XLIFF/XML string in JSON-like payloads."""
+    if isinstance(payload, str):
+        if "<xliff" in payload or payload.lstrip().startswith("<?xml"):
+            return payload
+        if "&lt;xliff" in payload:
+            unescaped = html.unescape(payload)
+            if "<xliff" in unescaped:
+                return unescaped
+        return None
+
+    if isinstance(payload, dict):
+        for key in ("xliff", "content", "data"):
+            if key in payload:
+                found = _find_xliff_value(payload[key])
+                if found:
+                    return found
+
+        for value in payload.values():
+            found = _find_xliff_value(value)
+            if found:
+                return found
+
+    if isinstance(payload, list):
+        for value in payload:
+            found = _find_xliff_value(value)
+            if found:
+                return found
+
+    return None
+
+
 def sanitize_xliff_content(xliff_content: str) -> str:
     """Normalize XLIFF payload before XML parsing."""
     if not xliff_content:
@@ -31,12 +64,9 @@ def sanitize_xliff_content(xliff_content: str) -> str:
         except json.JSONDecodeError:
             payload = None
 
-        if isinstance(payload, dict):
-            for key in ("xliff", "content", "data"):
-                value = payload.get(key)
-                if isinstance(value, str) and "<xliff" in value:
-                    text = value
-                    break
+        extracted = _find_xliff_value(payload)
+        if extracted:
+            text = extracted
 
     stripped = text.lstrip("\ufeff\n\r\t ")
     xliff_start = stripped.find("<")
