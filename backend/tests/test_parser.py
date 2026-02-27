@@ -54,6 +54,20 @@ class ParserTests(unittest.TestCase):
             [{"scene_id": "scene__ja", "script": ["やあ、ようこそ。\n次へ進むにはボタンをクリック。"]}],
         )
 
+
+    def test_parse_scenes_from_xliff_supports_json_wrapped_thai_xliff(self) -> None:
+        xliff = """<?xml version='1.0' encoding='utf-8'?>
+<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2"><file><body><group id="scene__th"><trans-unit id="script__scene__th"><source><g ctype="x-syn-voice">สวัสดีค่ะ
+คลิกที่นี่เพื่อดำเนินการต่อ</g></source></trans-unit></group></body></file></xliff>"""
+        payload = json.dumps({"xliff": xliff}).encode("utf-8")
+
+        scenes = parse_scenes_from_xliff(payload)
+
+        self.assertEqual(
+            scenes,
+            [{"scene_id": "scene__th", "script": ["สวัสดีค่ะ\nคลิกที่นี่เพื่อดำเนินการต่อ"]}],
+        )
+
     def test_parse_scenes_from_xliff_supports_utf16_japanese_xliff(self) -> None:
         xliff = """<?xml version='1.0' encoding='utf-16'?>
 <xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2"><file><body><group id="scene_utf16"><trans-unit id="script__scene__ja"><source><g tag="voice">日本語のテキストです。</g></source></trans-unit></group></body></file></xliff>""".encode("utf-16")
