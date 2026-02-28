@@ -184,22 +184,36 @@ def generate_pdf(scenes: list[dict[str, list[str] | str]], output_path: Path) ->
     """Generate a PDF from parsed scenes and script lines."""
     styles = getSampleStyleSheet()
     heading_base = styles["Heading2"]
+    subheading_base = styles["Heading4"]
     body_base = styles["BodyText"]
 
     story = []
-    for scene in scenes:
+    for scene_number, scene in enumerate(scenes, start=1):
         scene_id = str(scene["scene_id"])
+        scene_title = str(scene.get("scene_title", "")).strip()
         script_lines = scene["script"]
 
-        heading_text = f"Scene: {scene_id}"
+        heading_text = f"Scene {scene_number}"
         heading_style = _clone_with_font(heading_base, heading_text, f"SceneHeading_{scene_id}")
         story.append(Paragraph(_escape_paragraph_text(heading_text), heading_style))
-        story.append(Spacer(1, 4 * mm))
+        story.append(Spacer(1, 2 * mm))
+
+        scene_title_text = scene_title or scene_id
+        title_line = f"Title: {scene_title_text}"
+        title_style = _clone_with_font(subheading_base, title_line, f"SceneTitle_{scene_id}")
+        story.append(Paragraph(_escape_paragraph_text(title_line), title_style))
+        story.append(Spacer(1, 3 * mm))
+
+        script_label = "Script:"
+        script_label_style = _clone_with_font(subheading_base, script_label, f"SceneScriptLabel_{scene_id}")
+        story.append(Paragraph(_escape_paragraph_text(script_label), script_label_style))
+        story.append(Spacer(1, 2 * mm))
 
         for line_index, line in enumerate(script_lines):
             line_text = str(line)
-            body_style = _clone_with_font(body_base, line_text, f"SceneBody_{scene_id}_{line_index}")
-            story.append(Paragraph(_escape_paragraph_text(line_text), body_style))
+            line_text_with_prefix = f"• {line_text}"
+            body_style = _clone_with_font(body_base, line_text_with_prefix, f"SceneBody_{scene_id}_{line_index}")
+            story.append(Paragraph(_escape_paragraph_text(line_text_with_prefix), body_style))
             story.append(Spacer(1, 2.5 * mm))
 
         story.append(Spacer(1, 5 * mm))

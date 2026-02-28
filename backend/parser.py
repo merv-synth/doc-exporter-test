@@ -198,15 +198,22 @@ def parse_scenes_from_xliff(xliff_content: bytes) -> list[dict[str, list[str] | 
     scenes: list[dict[str, list[str] | str]] = []
     for group in root.findall(group_path, ns):
         scene_id = group.attrib.get("id") or group.attrib.get("resname") or "unknown_scene"
+        scene_title: str | None = None
 
         lines: list[str] = []
         for trans_unit in group.findall(trans_unit_path, ns):
             trans_unit_id = trans_unit.attrib.get("id", "")
-            if not trans_unit_id.startswith("script__scene__"):
-                continue
-
             source = trans_unit.find(source_path, ns)
             if source is None:
+                continue
+
+            if trans_unit_id.startswith("element__title__scene__") and scene_title is None:
+                title_text = "".join(source.itertext()).strip()
+                if title_text:
+                    scene_title = title_text
+                continue
+
+            if not trans_unit_id.startswith("script__scene__"):
                 continue
 
             voice_texts = _extract_voice_texts(source)
@@ -219,7 +226,10 @@ def parse_scenes_from_xliff(xliff_content: bytes) -> list[dict[str, list[str] | 
                     lines.append(source_text)
 
         if lines:
-            scenes.append({"scene_id": scene_id, "script": lines})
+            scene_payload: dict[str, list[str] | str] = {"scene_id": scene_id, "script": lines}
+            if scene_title:
+                scene_payload["scene_title"] = scene_title
+            scenes.append(scene_payload)
 
     return scenes
 

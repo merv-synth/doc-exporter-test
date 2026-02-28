@@ -33,6 +33,37 @@ class PdfGeneratorTests(unittest.TestCase):
         # The generated document must contain at least one embedded unicode-capable font.
         self.assertIn(b"/HeiseiKakuGo-W5", pdf_bytes)
 
+
+    def test_generate_pdf_structures_scene_heading_title_and_script_sections(self) -> None:
+        scenes = [
+            {
+                "scene_id": "scene__1",
+                "scene_title": "Welcome",
+                "script": ["Line one", "Line two"],
+            }
+        ]
+
+        paragraph_calls: list[str] = []
+
+        def _fake_paragraph(text: str, _style):
+            paragraph_calls.append(text)
+            return text
+
+        class _FakeDoc:
+            def build(self, _story):
+                return None
+
+        with patch("pdf_generator.Paragraph", side_effect=_fake_paragraph), patch(
+            "pdf_generator.SimpleDocTemplate", return_value=_FakeDoc()
+        ):
+            generate_pdf(scenes, Path("unused.pdf"))
+
+        self.assertIn("Scene 1", paragraph_calls)
+        self.assertIn("Title: Welcome", paragraph_calls)
+        self.assertIn("Script:", paragraph_calls)
+        self.assertIn("• Line one", paragraph_calls)
+        self.assertIn("• Line two", paragraph_calls)
+
     def test_font_selection_for_target_languages(self) -> None:
         with patch("pdf_generator._register_thai_font", return_value="NotoSansThai"):
             self.assertEqual(get_font_for_text("ภาษาไทย"), "NotoSansThai")

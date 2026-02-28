@@ -122,6 +122,7 @@ class ParserTests(unittest.TestCase):
 
         self.assertEqual(len(scenes), 2)
         self.assertEqual(scenes[0]["scene_id"], "scene__d056a155")
+        self.assertEqual(scenes[0]["scene_title"], "ภาพรวมชีวิต")
         self.assertIn("สวัสดีค่ะ", scenes[0]["script"][0])
         self.assertIn("คลิกที่นี่เพื่อดําเนินการต่อ", scenes[0]["script"][0])
         self.assertEqual(scenes[1]["scene_id"], "scene__0534f09e")
