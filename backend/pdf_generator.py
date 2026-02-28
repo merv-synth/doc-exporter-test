@@ -177,6 +177,7 @@ def _clone_with_font(style: ParagraphStyle, text: str, style_name: str) -> Parag
     style_with_font = style.clone(style_name)
     style_with_font.fontName = get_font_for_text(text)
     style_with_font.textColor = colors.black
+    style_with_font.bulletColor = colors.black
     return style_with_font
 
 
@@ -186,6 +187,14 @@ def generate_pdf(scenes: list[dict[str, list[str] | str]], output_path: Path) ->
     heading_base = styles["Heading2"]
     subheading_base = styles["Heading4"]
     body_base = styles["BodyText"]
+
+    # Enforce black text at the base style level before cloning per paragraph.
+    heading_base.textColor = colors.black
+    heading_base.bulletColor = colors.black
+    subheading_base.textColor = colors.black
+    subheading_base.bulletColor = colors.black
+    body_base.textColor = colors.black
+    body_base.bulletColor = colors.black
 
     story = []
     for scene_number, scene in enumerate(scenes, start=1):

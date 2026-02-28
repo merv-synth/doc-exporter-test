@@ -7,7 +7,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 from parser import parse_scenes_from_xliff
-from pdf_generator import _escape_paragraph_text, generate_pdf, get_font_for_text
+from reportlab.lib import colors
+
+from pdf_generator import _clone_with_font, _escape_paragraph_text, generate_pdf, get_font_for_text
 
 
 class PdfGeneratorTests(unittest.TestCase):
@@ -108,6 +110,15 @@ class PdfGeneratorTests(unittest.TestCase):
 
         self.assertGreater(len(pdf_bytes), 1000)
         self.assertIn(get_font_for_text("สวัสดีค่ะ").encode("utf-8"), pdf_bytes)
+
+    def test_clone_with_font_enforces_black_text_and_bullets(self) -> None:
+        from reportlab.lib.styles import ParagraphStyle
+
+        base_style = ParagraphStyle("Body", textColor=colors.white, bulletColor=colors.white)
+        cloned = _clone_with_font(base_style, "Line one", "BodyClone")
+
+        self.assertEqual(cloned.textColor, colors.black)
+        self.assertEqual(cloned.bulletColor, colors.black)
 
 
 if __name__ == "__main__":
