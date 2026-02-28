@@ -6,7 +6,7 @@ import textwrap
 import unittest
 from pathlib import Path
 
-from parser import normalize, parse_scenes_from_srt_and_xliff, parse_scenes_from_xliff, parse_srt
+from parser import normalize, parse_scenes_from_srt_and_xliff, parse_scenes_from_xliff, parse_srt, parse_vtt
 
 
 class ParserTests(unittest.TestCase):
@@ -140,6 +140,25 @@ class ParserTests(unittest.TestCase):
     def test_parse_srt_invalid_returns_empty(self) -> None:
         self.assertEqual(parse_srt("not an srt"), [])
 
+    def test_parse_vtt_parses_valid_cues(self) -> None:
+        vtt_text = textwrap.dedent(
+            """\
+            WEBVTT
+
+            00:00:00.000 --> 00:00:01.500
+            สวัสดีค่ะ
+
+            00:00:01.500 --> 00:00:02.000
+            ต่อไป
+            """
+        )
+
+        cues = parse_vtt(vtt_text)
+
+        self.assertEqual(len(cues), 2)
+        self.assertEqual(cues[0]["content"], "สวัสดีค่ะ")
+        self.assertAlmostEqual(cues[1]["start"], 1.5)
+
     def test_parse_scenes_from_srt_and_xliff_builds_timeline_with_visual_scene(self) -> None:
         xliff = textwrap.dedent(
             """\
@@ -218,6 +237,76 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(scenes[0]["script"], "สวัสดีค่ะ")
         self.assertAlmostEqual(scenes[0]["start_time"], 0.0)
         self.assertAlmostEqual(scenes[0]["end_time"], 1.0)
+
+    def test_parse_scenes_from_srt_and_xliff_accepts_vtt_input(self) -> None:
+        xliff = textwrap.dedent(
+            """\
+            <xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2">
+              <file>
+                <body>
+                  <group id="scene__vtt">
+                    <trans-unit id="script__scene__vtt"><source><g ctype="x-syn-voice">สวัสดีค่ะ</g></source></trans-unit>
+                  </group>
+                </body>
+              </file>
+            </xliff>
+            """
+        )
+        vtt_text = textwrap.dedent(
+            """\
+            WEBVTT
+
+            00:00:00.000 --> 00:00:01.000
+            สวัสดีค่ะ
+            """
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            xliff_path = tmp_path / "captions.xliff"
+            vtt_path = tmp_path / "captions.vtt"
+            xliff_path.write_text(xliff, encoding="utf-8")
+            vtt_path.write_text(vtt_text, encoding="utf-8")
+
+            scenes = parse_scenes_from_srt_and_xliff(str(vtt_path), str(xliff_path))
+
+        self.assertEqual(len(scenes), 1)
+        self.assertAlmostEqual(scenes[0]["start_time"], 0.0)
+        self.assertAlmostEqual(scenes[0]["end_time"], 1.0)
+
+    def test_parse_scenes_from_srt_and_xliff_preserves_unmatched_scene_with_fallback_timing(self) -> None:
+        xliff = textwrap.dedent(
+            """\
+            <xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2">
+              <file>
+                <body>
+                  <group id="scene_match"><trans-unit id="script__scene__1"><source>ข้อความที่ตรงกัน</source></trans-unit></group>
+                  <group id="scene_unmatched"><trans-unit id="script__scene__2"><source>ข้อความที่ไม่ตรงกันเลย</source></trans-unit></group>
+                </body>
+              </file>
+            </xliff>
+            """
+        )
+        srt_text = textwrap.dedent(
+            """\
+            1
+            00:00:00,000 --> 00:00:01,000
+            ข้อความที่ตรงกัน
+            """
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            xliff_path = tmp_path / "captions.xliff"
+            srt_path = tmp_path / "captions.srt"
+            xliff_path.write_text(xliff, encoding="utf-8")
+            srt_path.write_text(srt_text, encoding="utf-8")
+
+            scenes = parse_scenes_from_srt_and_xliff(str(srt_path), str(xliff_path))
+
+        self.assertEqual([scene["id"] for scene in scenes], ["scene_match", "scene_unmatched"])
+        self.assertAlmostEqual(scenes[1]["start_time"], 1.0)
+        self.assertAlmostEqual(scenes[1]["end_time"], 3.0)
 
     def test_normalize_handles_unicode(self) -> None:
         self.assertEqual(normalize("Ｈéllo—１２3"), "héllo123")
