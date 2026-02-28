@@ -17,6 +17,12 @@ SRT_BLOCK_RE = re.compile(
     r"(.*?)(?=\n\s*\n|\Z)",
     re.DOTALL,
 )
+VTT_BLOCK_RE = re.compile(
+    r"(?:\n|\A)(?:\d+\s*\n)?"
+    r"(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})\s*\n"
+    r"(.*?)(?=\n\s*\n|\Z)",
+    re.DOTALL,
+)
 
 
 def _find_xliff_value(payload: Any) -> str | None:
@@ -109,6 +115,12 @@ def _srt_time_to_seconds(timecode: str) -> float:
     return int(hours) * 3600 + int(minutes) * 60 + int(seconds) + int(millis) / 1000
 
 
+def _vtt_time_to_seconds(timecode: str) -> float:
+    hours, minutes, seconds_ms = timecode.split(":")
+    seconds, millis = seconds_ms.split(".")
+    return int(hours) * 3600 + int(minutes) * 60 + int(seconds) + int(millis) / 1000
+
+
 def parse_srt(srt_content: str) -> list[dict[str, Any]]:
     """Parse an SRT payload into timing/content dictionaries."""
     cues: list[dict[str, Any]] = []
@@ -121,6 +133,24 @@ def parse_srt(srt_content: str) -> list[dict[str, Any]]:
 
     if not cues:
         logger.error("SRT parse error: no valid cue blocks found")
+
+    return cues
+
+
+def parse_vtt(vtt_content: str) -> list[dict[str, Any]]:
+    """Parse a VTT payload into timing/content dictionaries."""
+    cues: list[dict[str, Any]] = []
+
+    for match in VTT_BLOCK_RE.finditer(vtt_content):
+        start = _vtt_time_to_seconds(match.group(1))
+        end = _vtt_time_to_seconds(match.group(2))
+        content = match.group(3).strip()
+        if not content:
+            continue
+        cues.append({"start": start, "end": end, "content": content})
+
+    if not cues:
+        logger.error("VTT parse error: no valid cue blocks found")
 
     return cues
 
@@ -235,9 +265,12 @@ def parse_scenes_from_srt_and_xliff(srt_path: str, xliff_path: str) -> list[dict
             }
         )
 
-    srt_content = Path(srt_path).read_text(encoding="utf-8")
-    srt_cues = parse_srt(srt_content)
-    for cue in srt_cues:
+    subtitle_content = Path(srt_path).read_text(encoding="utf-8")
+    subtitle_cues = parse_srt(subtitle_content)
+    if not subtitle_cues and "-->" in subtitle_content:
+        subtitle_cues = parse_vtt(subtitle_content)
+
+    for cue in subtitle_cues:
         cue["norm"] = normalize(cue["content"])
 
     script_scenes_with_timing: list[dict[str, Any]] = []
@@ -247,20 +280,30 @@ def parse_scenes_from_srt_and_xliff(srt_path: str, xliff_path: str) -> list[dict
     accumulated_norm_text = ""
     scene_start_time: float | None = None
 
-    for srt_block in srt_cues:
+    for subtitle_block in subtitle_cues:
         if scene_idx >= len(script_scenes_to_match):
             break
 
         if scene_start_time is None:
-            scene_start_time = srt_block["start"]
+            scene_start_time = subtitle_block["start"]
 
-        accumulated_norm_text += srt_block["norm"]
+        accumulated_norm_text += subtitle_block["norm"]
 
         current_scene = script_scenes_to_match[scene_idx]
         target_norm_text = normalize(current_scene["script"])
 
-        if target_norm_text and target_norm_text in accumulated_norm_text:
-            end_time = srt_block["end"]
+        if not target_norm_text:
+            continue
+
+        is_direct_match = target_norm_text in accumulated_norm_text
+        is_substring_progress_match = (
+            accumulated_norm_text in target_norm_text
+            and len(accumulated_norm_text) >= int(len(target_norm_text) * 0.85)
+        )
+        is_overflow_match = len(accumulated_norm_text) >= max(40, int(len(target_norm_text) * 1.35))
+
+        if is_direct_match or is_substring_progress_match or is_overflow_match:
+            end_time = subtitle_block["end"]
 
             current_scene["start_time"] = scene_start_time
             current_scene["end_time"] = end_time
@@ -270,6 +313,19 @@ def parse_scenes_from_srt_and_xliff(srt_path: str, xliff_path: str) -> list[dict
             scene_idx += 1
             accumulated_norm_text = ""
             scene_start_time = None
+
+    last_seen_subtitle_time = subtitle_cues[-1]["end"] if subtitle_cues else 0.0
+
+    while scene_idx < len(script_scenes_to_match):
+        scene = script_scenes_to_match[scene_idx]
+        fallback_start = scene_start_time if scene_start_time is not None else last_seen_subtitle_time
+        fallback_end = fallback_start + 2.0
+        scene["start_time"] = fallback_start
+        scene["end_time"] = fallback_end
+        scene["screenshot_time"] = fallback_end - 0.2
+        script_scenes_with_timing.append(scene)
+        last_seen_subtitle_time = fallback_end
+        scene_idx += 1
 
     final_ordered_scenes: list[dict[str, Any]] = []
     script_scene_timeline = {scene["original_order"]: scene for scene in script_scenes_with_timing}
