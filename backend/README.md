@@ -5,7 +5,7 @@ This backend provides APIs for:
 - Listing Synthesia videos with an API key
 - Downloading video XLIFF
 - Parsing scenes/scripts from XLIFF
-- Exporting a PDF
+- Exporting PDF or Word documents
 
 ## Run locally
 
@@ -50,3 +50,4 @@ For Thai rendering in containerized environments, the Docker image installs `fon
 - `GET /healthz`
 - `GET /videos?api_key=...`
 - `POST /export-pdf` (form fields: `api_key`, `video_id`)
+- `POST /export-word` (form fields: `api_key`, `video_id`)

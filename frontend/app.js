@@ -10,6 +10,7 @@ const API_BASE =
 const apiKeyInput = document.getElementById("apiKey");
 const loadVideosBtn = document.getElementById("loadVideosBtn");
 const exportPdfBtn = document.getElementById("exportPdfBtn");
+const exportWordBtn = document.getElementById("exportWordBtn");
 const videoList = document.getElementById("videoList");
 const videoGallery = document.getElementById("videoGallery");
 const loadingEl = document.getElementById("loading");
@@ -25,6 +26,7 @@ function setLoading(isLoading) {
   loadingEl.classList.toggle("hidden", !isLoading);
   loadVideosBtn.disabled = isLoading;
   exportPdfBtn.disabled = isLoading || !videoList.value;
+  exportWordBtn.disabled = isLoading || !videoList.value;
 }
 
 function setError(message) {
@@ -229,6 +231,7 @@ async function loadVideos() {
     renderVideoCards(videos);
 
     exportPdfBtn.disabled = !videoList.value;
+    exportWordBtn.disabled = !videoList.value;
     if (!videos.length) {
       setError("No videos were returned for this account.");
       addLog("No videos available for account");
@@ -247,9 +250,13 @@ async function loadVideos() {
   }
 }
 
-async function exportPdf() {
+async function exportDocument(format) {
   const apiKey = apiKeyInput.value.trim();
   const videoId = videoList.value;
+  const normalizedFormat = format === "word" ? "word" : "pdf";
+  const endpoint = normalizedFormat === "word" ? "export-word" : "export-pdf";
+  const extension = normalizedFormat === "word" ? "docx" : "pdf";
+  const successLabel = normalizedFormat === "word" ? "Word document" : "PDF";
 
   if (!apiKey || !videoId) {
     setError("Please provide an API key and select a video.");
@@ -264,7 +271,7 @@ async function exportPdf() {
   setSuccess("");
   setLoading(true);
 
-  addLog("Starting Export PDF flow", {
+  addLog(`Starting Export ${successLabel} flow`, {
     videoId,
     apiKey: maskApiKey(apiKey),
   });
@@ -274,18 +281,18 @@ async function exportPdf() {
     formData.append("api_key", apiKey);
     formData.append("video_id", videoId);
 
-    const response = await fetchWithLogging(`${API_BASE}/export-pdf`, {
+    const response = await fetchWithLogging(`${API_BASE}/${endpoint}`, {
       method: "POST",
       body: formData,
     });
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      throw new Error(payload.detail || "Failed to export PDF.");
+      throw new Error(payload.detail || `Failed to export ${successLabel}.`);
     }
 
     const blob = await response.blob();
-    addLog("Received PDF payload", {
+    addLog(`Received ${successLabel} payload`, {
       sizeBytes: blob.size,
       mimeType: blob.type || "application/octet-stream",
     });
@@ -293,24 +300,32 @@ async function exportPdf() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${videoId}.pdf`;
+    a.download = `${videoId}.${extension}`;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
 
-    addLog("Triggered PDF download", {
-      filename: `${videoId}.pdf`,
+    addLog(`Triggered ${successLabel} download`, {
+      filename: `${videoId}.${extension}`,
     });
-    setSuccess("PDF exported successfully.");
+    setSuccess(`${successLabel} exported successfully.`);
   } catch (error) {
-    addLog("Export PDF failed", {
+    addLog(`Export ${successLabel} failed`, {
       error: error.message || "Unknown error",
     });
-    setError(error.message || "Unexpected error while exporting PDF.");
+    setError(error.message || `Unexpected error while exporting ${successLabel}.`);
   } finally {
     setLoading(false);
   }
+}
+
+async function exportPdf() {
+  return exportDocument("pdf");
+}
+
+async function exportWord() {
+  return exportDocument("word");
 }
 
 clearLogsBtn.addEventListener("click", () => {
@@ -322,6 +337,7 @@ clearLogsBtn.addEventListener("click", () => {
 
 loadVideosBtn.addEventListener("click", loadVideos);
 exportPdfBtn.addEventListener("click", exportPdf);
+exportWordBtn.addEventListener("click", exportWord);
 addLog("UI initialized", { apiBase: API_BASE });
 
 updateLogsCount();

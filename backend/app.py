@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 from parser import parse_scenes_from_xliff
 from pdf_generator import generate_pdf
+from word_generator import generate_word_document
 
 SYNTHESIA_API_BASE = os.getenv("SYNTHESIA_API_BASE", "https://api.synthesia.io/v2")
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "30"))
@@ -240,19 +241,11 @@ def post_videos(payload: VideosRequest):
     return _build_videos_response(videos, trace_id)
 
 
-@app.post("/export-pdf")
-def export_pdf(
-    background_tasks: BackgroundTasks,
-    api_key: str = Form(...),
-    video_id: str = Form(...),
-):
-    trace_id = uuid4().hex[:8]
-    logger.info("[%s] /export-pdf request received video_id=%s", trace_id, video_id)
+def _prepare_scenes_from_video(api_key: str, video_id: str, trace_id: str) -> tuple[list[dict[str, list[str] | str]], Path]:
     xliff_content = _download_xliff(api_key, video_id, trace_id)
 
     temp_dir = Path(tempfile.mkdtemp(prefix="synthesia_export_"))
     xliff_path = temp_dir / f"{video_id}.xliff"
-    pdf_path = temp_dir / f"{video_id}.pdf"
 
     try:
         xliff_path.write_bytes(xliff_content)
@@ -272,11 +265,26 @@ def export_pdf(
         scenes = parse_scenes_from_xliff(xliff_content)
         logger.info("[%s] Parsed XLIFF scenes count=%s", trace_id, len(scenes))
     except ValueError as exc:
+        shutil.rmtree(temp_dir, ignore_errors=True)
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     if not scenes:
         shutil.rmtree(temp_dir, ignore_errors=True)
         raise HTTPException(status_code=422, detail="No scenes found in XLIFF")
+
+    return scenes, temp_dir
+
+
+@app.post("/export-pdf")
+def export_pdf(
+    background_tasks: BackgroundTasks,
+    api_key: str = Form(...),
+    video_id: str = Form(...),
+):
+    trace_id = uuid4().hex[:8]
+    logger.info("[%s] /export-pdf request received video_id=%s", trace_id, video_id)
+    scenes, temp_dir = _prepare_scenes_from_video(api_key, video_id, trace_id)
+    pdf_path = temp_dir / f"{video_id}.pdf"
 
     try:
         generate_pdf(scenes, pdf_path)
@@ -292,4 +300,32 @@ def export_pdf(
         path=pdf_path,
         media_type="application/pdf",
         filename=f"{video_id}.pdf",
+    )
+
+
+@app.post("/export-word")
+def export_word(
+    background_tasks: BackgroundTasks,
+    api_key: str = Form(...),
+    video_id: str = Form(...),
+):
+    trace_id = uuid4().hex[:8]
+    logger.info("[%s] /export-word request received video_id=%s", trace_id, video_id)
+    scenes, temp_dir = _prepare_scenes_from_video(api_key, video_id, trace_id)
+    word_path = temp_dir / f"{video_id}.docx"
+
+    try:
+        generate_word_document(scenes, word_path)
+        logger.info("[%s] Word document generated at %s", trace_id, word_path)
+    except Exception as exc:  # defensive
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise HTTPException(status_code=500, detail="Failed to generate Word document") from exc
+
+    background_tasks.add_task(shutil.rmtree, temp_dir, True)
+    logger.info("[%s] Scheduled cleanup for %s", trace_id, temp_dir)
+
+    return FileResponse(
+        path=word_path,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename=f"{video_id}.docx",
     )
